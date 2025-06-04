@@ -1,0 +1,64 @@
+import os
+import asyncio
+import json
+import pandas as pd
+from langchain_openai import AzureChatOpenAI
+from pydantic import SecretStr
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+# Random test notices (unrelated to shipping)
+test_notices = [
+    {"text": "The company picnic has been canceled due to budget constraints."},
+    {"text": "New employee wellness program launched with free gym memberships!"},
+    {"text": "The office will be closed next Monday for maintenance."},
+    {"text": "Annual bonuses will be 20% higher this year."},
+    {"text": "Parking fees in the garage will increase starting next month."},
+    {"text": "Free coffee and snacks now available in all break rooms."},
+    {"text": "Mandatory overtime announced for all December weekends."}
+]
+
+async def analyze_sentiment(llm: AzureChatOpenAI, text: str) -> str:
+    """Get pure sentiment analysis without explanations"""
+    prompt = f"""
+    Classify this text's sentiment as ONLY one word:
+    - POSITIVE
+    - NEGATIVE 
+    - NEUTRAL
+    
+    Text: {text}
+    """
+    response = await llm.ainvoke(prompt)
+    return response.content.strip()
+
+async def main():
+    llm = AzureChatOpenAI(
+        model="gpt-4o-mini",
+        api_version="2024-05-01-preview",
+        azure_endpoint=os.getenv('AZURE_OPENAI_ENDPOINT'),
+        api_key=SecretStr(os.getenv('AZURE_OPENAI_API_KEY')),
+        temperature=0.3
+    )
+
+    # Analyze all notices
+    results = []
+    for notice in test_notices:
+        sentiment = await analyze_sentiment(llm, notice["text"])
+        results.append({
+            "Notice Content": notice["text"],
+            "Sentiment": sentiment
+        })
+
+    # Create and display results
+    df = pd.DataFrame(results)
+    print("\nSENTIMENT ANALYSIS RESULTS:")
+    print(df.to_string(index=False))
+    
+    # Save to CSV (simpler than Excel for this)
+    df.to_csv("sentiment_results.csv", index=False)
+    print("\nResults saved to sentiment_results.csv")
+
+if __name__ == "__main__":
+    asyncio.run(main())
